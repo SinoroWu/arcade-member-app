@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const payment_controller_1 = require("../controllers/payment.controller");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const router = (0, express_1.Router)();
+router.get('/tiers', (req, res) => payment_controller_1.paymentController.getTiers(req, res));
+router.post('/cashier-topup', (req, res, next) => payment_controller_1.paymentController.cashierTopup(req, res, next));
+router.post('/create-online', auth_middleware_1.authMiddleware, (req, res, next) => payment_controller_1.paymentController.createOnlinePayment(req, res, next));
+exports.default = router;

@@ -3,9 +3,7 @@ node_modules/
 */node_modules/
 
 # Production builds
-dist/
-frontend/dist/
-backend/dist/
+# (frontend/dist and backend/dist are tracked for instant 0-RAM cloud boot)
 
 # Local Environment Variables
 .env

@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const reward_controller_1 = require("../controllers/reward.controller");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const router = (0, express_1.Router)();
+router.get('/items', (req, res, next) => reward_controller_1.rewardController.getItems(req, res, next));
+router.post('/redeem', auth_middleware_1.authMiddleware, (req, res, next) => reward_controller_1.rewardController.redeemItem(req, res, next));
+router.get('/my-vouchers', auth_middleware_1.authMiddleware, (req, res, next) => reward_controller_1.rewardController.getMyVouchers(req, res, next));
+router.post('/staff-verify-voucher', (req, res, next) => reward_controller_1.rewardController.staffVerifyVoucher(req, res, next));
+exports.default = router;

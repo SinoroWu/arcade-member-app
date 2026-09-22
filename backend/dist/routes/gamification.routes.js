@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const gamification_controller_1 = require("../controllers/gamification.controller");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const router = (0, express_1.Router)();
+router.get('/wheel-segments', (req, res) => gamification_controller_1.gamificationController.getWheelSegments(req, res));
+router.post('/checkin', auth_middleware_1.authMiddleware, (req, res, next) => gamification_controller_1.gamificationController.checkin(req, res, next));
+router.post('/spin-wheel', auth_middleware_1.authMiddleware, (req, res, next) => gamification_controller_1.gamificationController.spinWheel(req, res, next));
+exports.default = router;
