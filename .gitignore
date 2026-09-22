@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Production builds
+dist/
+frontend/dist/
+backend/dist/
+
+# Local Environment Variables
+.env
+*.env.local
+
+# Executables & Logs
+cloudflared.exe
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db

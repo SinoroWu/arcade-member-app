@@ -1,0 +1,200 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 1. 會員主檔
+model User {
+  id           String         @id @default(uuid())
+  account      String         @unique // 手機號碼或自訂帳號
+  passwordHash String
+  name         String
+  phone        String?
+  avatarUrl    String?
+  tier         MembershipTier @default(NORMAL) // NORMAL, BRONZE, SILVER, GOLD, VIP
+  expPoints    Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  transactions  WalletTransaction[]
+  vouchers      UserVoucher[]
+  checkins      DailyCheckin[]
+  paymentOrders PaymentOrder[]
+
+  @@map("users")
+}
+
+enum MembershipTier {
+  NORMAL
+  BRONZE
+  SILVER
+  GOLD
+  VIP
+}
+
+// 2. 雙重記帳核心資產交易流水帳本 (不可竄改)
+model WalletTransaction {
+  id             String          @id @default(uuid())
+  userId         String
+  assetType      AssetType       // TOKEN (代幣), TICKET (彩票), POINT (點數), EXP (經驗值)
+  amount         Decimal         @db.Decimal(12, 2) // 正數為存入/增加，負數為扣除/消費
+  balanceAfter   Decimal         @db.Decimal(12, 2) // 異動後餘額 (審計校驗)
+  txType         TransactionType
+  description    String
+  
+  // 關聯機台、訂單或兌換項目
+  machineId      String?
+  paymentOrderId String?
+  metadata       String?         // JSON 字串，存放操作員 ID、機台訊號等
+  createdAt      DateTime        @default(now())
+
+  user           User            @relation(fields: [userId], references: [id])
+  machine        Machine?        @relation(fields: [machineId], references: [id])
+  paymentOrder   PaymentOrder?   @relation(fields: [paymentOrderId], references: [id])
+
+  @@index([userId, assetType])
+  @@map("wallet_transactions")
+}
+
+enum AssetType {
+  TOKEN   // 遊戲代幣
+  TICKET  // 機台過關彩票
+  POINT   // 紅利點數
+  EXP     // 會員經驗值
+}
+
+enum TransactionType {
+  OFFLINE_TOPUP     // 線下門市櫃台儲值 (代幣)
+  ONLINE_PURCHASE   // [預留] 線上刷卡購買代幣
+  MACHINE_PLAY      // 機台投幣消費 (代幣)
+  MACHINE_REWARD    // 機台過關出票入帳 (彩票)
+  REWARD_REDEEM     // 景品/商城票券兌換 (彩票/點數)
+  DAILY_CHECKIN     // 每日簽到獎勵 (點數/代幣)
+  LUCKY_WHEEL       // 幸運輪盤抽獎 (點數/代幣/彩票)
+  STAFF_ADJUSTMENT  // 門市人員手動調整/補點
+}
+
+// 3. 實體機台設備 (硬體 IoT 對接)
+model Machine {
+  id               String              @id @default(uuid())
+  machineCode      String              @unique // 如: MC-TP-001
+  name             String              // 如: 太鼓達人 14 代
+  category         String              // 音樂機台, 夾娃娃機, 賽車, 籃球機, 兒童彩票機
+  storeBranch      String              // 如: 台北信義旗艦館
+  tokenCostPerPlay Decimal             @default(2.0) @db.Decimal(6, 2)
+  status           MachineStatus       @default(ONLINE)
+  hardwareIp       String?
+  mqttTopic        String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  transactions     WalletTransaction[]
+
+  @@map("machines")
+}
+
+enum MachineStatus {
+  ONLINE
+  OFFLINE
+  IN_USE
+  MAINTENANCE
+}
+
+// 4. 景品與票券兌換商城
+model RewardItem {
+  id              String         @id @default(uuid())
+  title           String         // 如: 限量初音未來模型 / 100元門市折價券
+  description     String?
+  category        RewardCategory // PHYSICAL (實體景品), DIGITAL (電子票券)
+  requiredTickets Int            @default(0) // 所需彩票
+  requiredPoints  Int            @default(0) // 所需紅利點數
+  stockQuantity   Int            @default(100)
+  imageUrl        String
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+
+  vouchers        UserVoucher[]
+
+  @@map("reward_items")
+}
+
+enum RewardCategory {
+  PHYSICAL
+  DIGITAL
+}
+
+// 5. 會員電子票券匣
+model UserVoucher {
+  id           String        @id @default(uuid())
+  userId       String
+  rewardItemId String
+  voucherCode  String        @unique // 專屬防偽核銷代碼
+  status       VoucherStatus @default(UNUSED)
+  expireAt     DateTime
+  redeemedAt   DateTime?
+  redeemedBy   String?       // 核銷店員 ID
+  createdAt    DateTime      @default(now())
+
+  user         User          @relation(fields: [userId], references: [id])
+  rewardItem   RewardItem    @relation(fields: [rewardItemId], references: [id])
+
+  @@map("user_vouchers")
+}
+
+enum VoucherStatus {
+  UNUSED
+  USED
+  EXPIRED
+}
+
+// 6. 儲值訂單
+model PaymentOrder {
+  id            String         @id @default(uuid())
+  userId        String
+  orderNo       String         @unique
+  amount        Decimal        @db.Decimal(10, 2)
+  targetTokens  Int
+  bonusTokens   Int            @default(0)
+  paymentMethod PaymentMethod  @default(OFFLINE_CASH)
+  status        PaymentStatus  @default(PENDING)
+  paidAt        DateTime?
+  createdAt     DateTime       @default(now())
+
+  user          User           @relation(fields: [userId], references: [id])
+  transactions  WalletTransaction[]
+
+  @@map("payment_orders")
+}
+
+enum PaymentMethod {
+  OFFLINE_CASH
+  CREDIT_CARD
+  LINE_PAY
+  ECPAY
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+// 7. 每日簽到記錄
+model DailyCheckin {
+  id          String   @id @default(uuid())
+  userId      String
+  checkinDate String   // YYYY-MM-DD
+  rewardPoint Int      @default(10)
+  streakDays  Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, checkinDate])
+  @@map("daily_checkins")
+}
